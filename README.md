@@ -1,1 +1,113 @@
 # Sentinela
+
+Painel local para **ver quem está conectado no seu Wi-Fi** e **cortar o acesso**
+de aparelhos que você não reconhece. Roda 100% na sua máquina — nada vai pra
+internet.
+
+> ⚠️ Use apenas na **sua própria rede** (a que você administra). Interferir no
+> tráfego de redes de terceiros é ilegal na maioria dos países.
+
+---
+
+## Como funciona (resumo honesto)
+
+- **Ver os aparelhos:** o programa manda um "quem está aí?" (ARP) pra toda a
+  sub-rede e lista quem responde — mostrando **IP**, **MAC**, o **fabricante**
+  deduzido do MAC (Apple, Samsung, etc.) e o **nome de rede** do aparelho
+  (hostname), quando ele divulga um. Isso funciona igual em qualquer roteador.
+
+  > Sobre "modelo": o modelo exato do aparelho não trafega pela rede. O que dá
+  > pra saber sem acesso privilegiado ao aparelho é o **fabricante** (pelo MAC)
+  > e o **hostname** que ele anuncia (ex.: `iPhone-de-Ana`, `TV-Samsung`) — as
+  > melhores pistas de identidade disponíveis, e é isso que o painel mostra.
+
+- **Bloquear:** o botão *Bloquear* usa **ARP spoofing** direcionado — engana o
+  aparelho-alvo fazendo o tráfego dele "cair num buraco". É **reversível** e só
+  vale **enquanto o programa estiver aberto**. É a mesma técnica de apps
+  comerciais tipo NetCut. O botão pede uma **confirmação** antes de cortar, pra
+  evitar bloqueio acidental.
+  - Para bloqueio **permanente**, o certo é o roteador (veja abaixo). O bloqueio
+    do Sentinela é ótimo pra "expulsar agora" alguém desconhecido.
+
+---
+
+## Instalação
+
+Precisa de **Python 3.9+**.
+
+```bash
+pip install -r requirements.txt
+```
+
+**Windows:** o scapy precisa do **Npcap** para capturar/injetar pacotes.
+Instale de https://npcap.com (marque "WinPcap API-compatible mode").
+
+---
+
+## Rodando
+
+O ARP precisa de privilégios de administrador:
+
+```bash
+# Linux / macOS
+sudo python app.py
+
+# Windows: abra o terminal "como administrador" e rode
+python app.py
+```
+
+Depois abra **http://127.0.0.1:5000** no navegador e clique em **Escanear rede**.
+
+- **Conheço** → marca o aparelho como conhecido (fica verde e é lembrado).
+- Campo de apelido → dê um nome ("TV da sala", "celular da Ana").
+- Busca e filtros → ache um aparelho por nome, fabricante, IP ou MAC, ou filtre
+  por conhecidos / desconhecidos / bloqueados.
+- Ordenação → clique num cabeçalho de coluna (ou use "Ordenar") para ordenar por
+  nome, fabricante, IP ou MAC, crescente ou decrescente.
+- **Atualizar automaticamente** → reescaneia a rede a cada 30 s (pula a atualização
+  enquanto você está digitando um apelido ou confirmando um bloqueio).
+- **Bloquear** → confirme e o acesso é cortado na hora. **Desbloquear** devolve.
+  Se o Sentinela não conseguir resolver o MAC do roteador, o bloqueio fica
+  indisponível e o painel avisa (rode como administrador e confira o Npcap).
+- Fechar o programa **desbloqueia tudo automaticamente**.
+
+---
+
+## Bloqueio permanente pelo roteador (recomendado)
+
+O bloqueio do Sentinela some quando você fecha o app. Para banir um aparelho de
+vez, copie o **MAC** que aparece no painel e cadastre no roteador:
+
+1. Acesse o roteador no navegador (geralmente `http://192.168.0.1` ou
+   `http://192.168.1.1` — o painel mostra o IP do seu roteador em "Roteador").
+2. Entre com usuário/senha do roteador (não é a senha do Wi-Fi).
+3. Procure por **Controle de Acesso**, **Filtro de MAC** ou **MAC Filtering**.
+4. Adicione o MAC do intruso à lista de **bloqueados** e salve.
+
+Depois disso, é uma boa **trocar a senha do Wi-Fi** — assim qualquer
+desconhecido que já tinha a senha é desconectado de vez.
+
+---
+
+## Arquivos
+
+| arquivo | o que faz |
+|---|---|
+| `app.py` | servidor + painel (é o que você roda) |
+| `scanner.py` | descoberta dos aparelhos (ARP + fabricante + hostname) |
+| `blocker.py` | bloqueio/desbloqueio (ARP spoofing) |
+| `store.py` | lembra apelidos e o que é conhecido (`known_devices.json`) |
+| `templates/index.html` | a página do painel |
+| `static/style.css`, `static/app.js` | aparência e comportamento do painel |
+
+---
+
+## Limitações
+
+- Assume rede doméstica comum (máscara /24). Redes maiores/segmentadas podem não
+  aparecer inteiras.
+- O **hostname** só aparece quando o aparelho o divulga; muitos celulares em modo
+  de privacidade não respondem, e nesse caso o painel mostra "Nome não divulgado".
+- Aparelhos podem "burlar" o bloqueio ARP (fixando ARP estático) — por isso o
+  filtro no roteador é mais definitivo.
+- Não escaneia redes Wi-Fi de convidado isoladas do seu segmento.
