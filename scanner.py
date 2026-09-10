@@ -1,11 +1,3 @@
-"""
-scanner.py — descoberta de dispositivos na rede local via ARP.
-
-Usa scapy para enviar requisições ARP em broadcast na sub-rede e coletar
-IP + MAC de cada aparelho que responde. O MAC é usado para identificar o
-fabricante (OUI) e para casar com a lista de dispositivos conhecidos.
-"""
-
 import socket
 import ipaddress
 
@@ -21,15 +13,9 @@ except Exception:
 
 
 def get_local_network():
-    """Descobre o IP local e devolve a sub-rede /24 correspondente.
-
-    Ex.: se o PC é 192.168.0.15, devolve '192.168.0.0/24'.
-    Assume máscara /24, que cobre a esmagadora maioria das redes domésticas.
-    """
     try:
         local_ip = get_if_addr(conf.iface)
     except Exception:
-        # fallback: abre um socket UDP pra "descobrir" o IP de saída
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
             s.connect(("8.8.8.8", 80))
@@ -56,16 +42,8 @@ def _lookup_vendor(mac):
 
 
 def _lookup_hostname(ip):
-    """Tenta descobrir o nome do aparelho na rede (DNS reverso / NetBIOS).
-
-    Muitos aparelhos anunciam um hostname ("iPhone-de-Ana", "TV-Samsung",
-    "notebook-gustavo"), que é a melhor pista de "modelo/identidade" que dá
-    para obter sem acesso privilegiado ao aparelho. Retorna "" quando o
-    aparelho não responde ao DNS reverso (comum em celulares em modo privado).
-    """
     try:
         host, _, _ = socket.gethostbyaddr(ip)
-        # descarta respostas que só repetem o IP
         if host and host != ip:
             return host.split(".")[0]
     except Exception:
@@ -74,10 +52,6 @@ def _lookup_hostname(ip):
 
 
 def scan(network=None, timeout=3):
-    """Escaneia a rede e devolve uma lista de dispositivos.
-
-    Cada item: {"ip": str, "mac": str, "vendor": str}
-    """
     if network is None:
         network, _ = get_local_network()
 
@@ -108,7 +82,7 @@ def scan(network=None, timeout=3):
 if __name__ == "__main__":
     net, ip = get_local_network()
     print(f"IP local: {ip}  |  rede: {net}")
-    print("Escaneando... (pode pedir privilégios de administrador)")
+    print("Escaneando...")
     for d in scan(net):
         name = d["hostname"] or "—"
         print(f"  {d['ip']:16} {d['mac']}  {name:20} {d['vendor']}")

@@ -12,6 +12,8 @@
 
 <div align="center">
 
+⚠️ Use apenas na **sua própria rede** (a que você administra). Interferir no tráfego de redes de terceiros é ilegal na maioria dos países.
+
 </div>
 
 <br>
@@ -134,7 +136,86 @@ Sentinela
 │   └── index.html      # A página do painel
 └── static
     ├── style.css       # Aparência do painel
-    └── app.js          # Comportamento do painel
+    ├── app.js          # Comportamento do painel
+    └── favicon.svg     # Ícone da aba do navegador
+```
+
+<br>
+
+## 🔌 API (contrato)
+
+O front-end conversa com o servidor por uma pequena API JSON. Todas as chamadas
+saem de um único ponto no `app.js` (o objeto `api`, com `API_BASE`), então trocar
+o Flask por outro backend — por exemplo **Java + Spring Boot** — é questão de
+apontar `API_BASE` para o novo servidor e manter os endpoints e o formato abaixo.
+
+Todas as respostas trazem `ok` (booleano). Em erro: `{ "ok": false, "error": "<mensagem>" }`.
+
+### `POST /api/scan`
+
+Escaneia a rede e devolve os aparelhos encontrados.
+
+```json
+{
+  "ok": true,
+  "network": "192.168.0.0/24",
+  "local_ip": "192.168.0.137",
+  "gateway_ip": "192.168.0.1",
+  "gateway_mac": "98:77:e7:08:89:6d",
+  "can_block": true,
+  "devices": [
+    {
+      "ip": "192.168.0.1",
+      "mac": "98:77:e7:08:89:6d",
+      "vendor": "Kaon Group Co., Ltd.",
+      "hostname": "",
+      "name": "Roteador da sala",
+      "status": "known",
+      "blocked": false
+    }
+  ]
+}
+```
+
+* `can_block` é `false` quando o MAC do roteador não pôde ser resolvido — nesse
+  caso o painel desabilita o bloqueio.
+* `status` é `"known"` ou `"unknown"`; `blocked` reflete o estado atual do bloqueio.
+
+### `POST /api/label`
+
+Salva o apelido e/ou a classificação de um aparelho. Ambos os campos são opcionais
+(envie só o que mudou).
+
+```json
+// requisição
+{ "mac": "98:77:e7:08:89:6d", "name": "Roteador da sala", "status": "known" }
+
+// resposta
+{ "ok": true, "entry": { "name": "Roteador da sala", "status": "known" } }
+```
+
+### `POST /api/block`
+
+Corta o acesso do aparelho (ARP spoofing). Exige `mac` e `ip`.
+
+```json
+// requisição
+{ "mac": "e6:ad:29:0f:1c:06", "ip": "192.168.0.221" }
+
+// resposta
+{ "ok": true }
+```
+
+### `POST /api/unblock`
+
+Devolve o acesso ao aparelho. Exige `mac`.
+
+```json
+// requisição
+{ "mac": "e6:ad:29:0f:1c:06" }
+
+// resposta
+{ "ok": true }
 ```
 
 <br>

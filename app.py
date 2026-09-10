@@ -1,17 +1,3 @@
-"""
-app.py — servidor local que junta tudo:
-  - escaneia a rede (scanner.py)
-  - lembra o que você classificou (store.py)
-  - bloqueia/desbloqueia aparelhos (blocker.py)
-  - serve o painel no navegador
-
-Rode com privilégios de administrador (ARP precisa disso):
-    sudo python app.py            (Linux/macOS)
-    python app.py                 (Windows, num terminal "como administrador")
-
-Depois abra http://127.0.0.1:5000 no navegador.
-"""
-
 from flask import Flask, jsonify, request, render_template
 
 import scanner
@@ -19,14 +5,14 @@ import store
 from blocker import Blocker
 
 app = Flask(__name__)
+app.config["TEMPLATES_AUTO_RELOAD"] = True
+app.jinja_env.auto_reload = True
 blocker = Blocker()
 
-# cache do último scan, pra API /devices responder rápido
 _last_scan = []
 
 
 def _merge(devices):
-    """Combina o scan com o que já sabemos e o estado de bloqueio."""
     merged = []
     for d in devices:
         saved = store.get(d["mac"]) or {}
@@ -59,7 +45,6 @@ def api_scan():
             "local_ip": local_ip,
             "gateway_ip": blocker.gateway_ip,
             "gateway_mac": gateway_mac,
-            # sem o MAC do roteador, o ARP spoofing não corta o caminho de volta
             "can_block": bool(gateway_mac),
             "devices": _last_scan,
         })
@@ -71,7 +56,6 @@ def api_scan():
 
 @app.route("/api/devices")
 def api_devices():
-    # reprocessa o cache pra refletir mudanças de bloqueio/label
     return jsonify({"ok": True, "devices": _merge([
         {"ip": d["ip"], "mac": d["mac"], "vendor": d["vendor"],
          "hostname": d.get("hostname", "")} for d in _last_scan
@@ -114,4 +98,4 @@ if __name__ == "__main__":
     try:
         app.run(host="127.0.0.1", port=5000, debug=False)
     finally:
-        blocker.unblock_all()  # devolve o acesso a todo mundo ao fechar
+        blocker.unblock_all()

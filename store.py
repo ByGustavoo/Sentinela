@@ -1,8 +1,3 @@
-"""
-store.py — guarda o que você já classificou (conhecido / desconhecido / apelido)
-num arquivo JSON, para lembrar entre um scan e outro.
-"""
-
 import json
 import os
 import threading
@@ -36,7 +31,6 @@ def get(mac):
 
 
 def set_label(mac, name=None, status=None):
-    """status: 'known' | 'unknown' | None (deixa como está)."""
     mac = mac.lower()
     with _lock:
         data = _load()
