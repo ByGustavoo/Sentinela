@@ -12,8 +12,6 @@
 
 <div align="center">
 
-⚠️ Use apenas na **sua própria rede** (a que você administra). Interferir no tráfego de redes de terceiros é ilegal na maioria dos países.
-
 </div>
 
 <br>
